@@ -1,4 +1,4 @@
-setwd("C:/Users/43365/Documents/school/Fall2017/machineLearning/project")
+setwd("C:/tmp")
 
 library(glmnet)
 

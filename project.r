@@ -1,6 +1,7 @@
-setwd("C:/tmp")
+setwd("C:/Users/43365/Documents/school/Fall2017/machineLearning/project")
 
 library(glmnet)
+library(plotmo)
 
 zscore <- function(column){
     return((column - mean(column))/sd(column))
@@ -9,11 +10,11 @@ zscore <- function(column){
 #Cleans a numeric column by removing the comma then filling in blank values with the median. 
 transform_column_to_numeric <- function(column){
     new <- as.numeric(gsub(",", "", column))
-    med <- median(new[which(is.numeric(new))])
-	new[is.na(new)] <- med
-	new[!is.numeric(new)] <- med
-	new[is.nan(new)] <- med
-	new[is.infinite(new)] <- med
+    med <- median(new, na.rm=TRUE)
+	new[which(is.na(new))] <- med
+	new[which(!is.numeric(new))] <- med
+	new[which(is.nan(new))] <- med
+	new[which(is.infinite(new))] <- med
     return (new)
 }
 
@@ -26,7 +27,8 @@ zscores <- function(dataframe) {
 }
 
 data <- read.csv("data.csv", header = TRUE)
-y <- data$PCT_OBESE_ADULTS13
+data$SNAP_REPORTSIMPLE16 <- NULL
+y <- transform_column_to_numeric(data$PCT_OBESE_ADULTS13)
 data$PCT_OBESE_ADULTS13 <- NULL
 data$PCT_OBESE_ADULTS08 <- NULL
 labels <- data.frame(data$FIPS, data$State, data$County)
@@ -35,4 +37,7 @@ data$State <- NULL
 data$County <- NULL
 x <- data
 x_z <- zscores(x)
+write.csv(x_z, file = "independentVarsNormalized.csv")
 lasso <- glmnet(as.matrix(x_z), y, alpha=1) # Create a lasso plot for the data
+plot(lasso)
+plot_glmnet(lasso)

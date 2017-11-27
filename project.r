@@ -31,7 +31,6 @@ zscores <- function(dataframe) {
 ######## Standardize dataset, establish y var and x vars
 data <- read.csv("data.csv", header = TRUE)
 y <- data$PCT_OBESE_ADULTS13
-y_pred <- ifelse(y >= quantile(y,.75), 1, 0)
 
 
 ####### Find attributes closest to 2013.  Take only attributes expressed as a percentage (where applicable).  Remove codependent attributes (percent diabetes).
@@ -256,9 +255,13 @@ abline(h = 4*mean(cooks_distance, na.rm=T), col="red")  # add cutoff line
 text(x=1:length(cooks_distance)+1, y=cooks_distance, labels=ifelse(cooks_distance>4*mean(cooks_distance, na.rm=T),names(cooks_distance),""), col="red", pos=4) #labels
 
 #Remove outliers based on Cook's Distance
-x_z[c(298, 1226, 2507),] <- NULL
+x_z <- x_z[-c(298,1226,2507),]
+y <- y[-c(298,1226,2507)]
 
 ####### Lasso to determine significant predictors
 layout(matrix(c(1), 1, 1))
-lasso <- glmnet(as.matrix(x_z_knn), y, alpha=1) # Create a lasso plot for the data
+lasso <- glmnet(as.matrix(x_z), y, alpha=1) # Create a lasso plot for the data
 plot_glmnet(lasso)
+
+####### Set y-pred to predict whether a county is in the third quartile of obesity:
+y_pred <- ifelse(y >= quantile(y,.75), 1, 0)

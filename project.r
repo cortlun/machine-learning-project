@@ -1,14 +1,23 @@
 setwd("C:/Users/43365/Documents/school/Fall2017/machineLearning/project")
 
-library(glmnet)
-library(plotmo)
-library(DMwR)
+library("glmnet")
+library("plotmo")
+library("DMwR")
+library("e1071")
+library("ROCR")
+library("caret")
+library("nnet")
 
 zscore <- function(column){
-    return((column - mean(column))/sd(column))
+    if (is.factor(column)) {
+        return(as.factor(column))
+    } 
+    else {
+        return((column - mean(column))/sd(column))
+    }
 } # Create user defined zscores function to ease zscore calculation
 
-#Cleans a numeric column by removing the comma.  By default it will perform imputation using the column median. 
+#Cleans a numeric column by removing the comma.  By default it will perform imputation using the column median, good for categorical variables. 
 transform_column_to_numeric <- function(column){
     new <- as.numeric(gsub(",", "", column))
     med <- median(new, na.rm=TRUE)
@@ -16,7 +25,12 @@ transform_column_to_numeric <- function(column){
 	new[which(!is.numeric(new))] <- med
 	new[which(is.nan(new))] <- med
 	new[which(is.infinite(new))] <- med
-    return (new)
+    if (is.factor(column)) {
+        return(as.factor(new))
+    } 
+    else {
+        return (new)
+    }
 }
 
 zscores <- function(dataframe) {
@@ -33,7 +47,7 @@ data <- read.csv("data.csv", header = TRUE)
 y <- data$PCT_OBESE_ADULTS13
 
 
-####### Find attributes closest to 2013.  Take only attributes expressed as a percentage (where applicable).  Remove codependent attributes (percent diabetes).
+####### Find attributes closest to 2013.  Take only attributes expressed as a percentage or per capita figure(where applicable).  Remove codependent attributes (percent diabetes).
 data$X2010.Census.Population <- NULL
 data$Population.Estimate.2011 <- NULL
 data$Population.Estimate.2012 <- NULL
@@ -220,8 +234,24 @@ data$PCT_18YOUNGER10 <- NULL
 data$PERPOV10 <- NULL
 data$PERCHLDPOV10 <- NULL
 data$POPLOSS10 <- NULL
-data$SNAP_REPORTSIMPLE16 <- NULL
-
+data$SNAP_REPORTSIMPLE16 <- 
+data$PCH_FFR_09_14 <- NULL
+data$GROC14 <- NULL
+data$SUPERC14 <- NULL
+data$CONVS14 <- NULL
+data$SPECS14 <- NULL
+data$SNAPS12 <- NULL
+data$WICS12 <- NULL
+data$FMRKT16 <- NULL
+data$VEG_FARMS12 <- NULL
+data$VEG_ACRES12 <- NULL
+data$FRESHVEG_ACRES12 <- NULL
+data$ORCHARD_FARMS12 <- NULL
+data$ORCHARD_ACRES12 <- NULL
+data$BERRY_FARMS12 <- NULL
+data$BERRY_ACRES12 <- NULL
+data$GHVEG_SQFT12 <- NULL
+data$RECFAC14 <- NULL
 
 data$PCT_OBESE_ADULTS13 <- NULL
 data$PCT_OBESE_ADULTS08 <- NULL
@@ -231,7 +261,15 @@ data$FIPS <- NULL
 data$State <- NULL
 data$County <- NULL
 
+
+# Factors
+data$SNAP_CAP16 <- as.factor(data$SNAP_CAP16)
+data$SNAP_BBCE16 <- as.factor(data$SNAP_BBCE16)
+data$FARM_TO_SCHOOL13 <- as.factor(transform_column_to_numeric(data$FARM_TO_SCHOOL13))
+data$Population.Estimate.2013 <- as.numeric(gsub(",", "", data$Population.Estimate.2013))
+
 x <- data
+
 
 # Perform imputation using column median
 #x_z <- zscores(x)
@@ -239,11 +277,20 @@ x <- data
 # Perform imputation using nearest neighbors method (based on euclidian distance, uses square root of the number of observations for k)
 x_knn = knnImputation(x, k=round(sqrt(nrow(x))))
 x_z = zscores(x_knn)
+x_z$SNAP_CAP16 <- as.numeric(x_z$SNAP_CAP16)
+x_z$SNAP_BBCE16 <- as.numeric(x_z$SNAP_BBCE16)
+x_z$FARM_TO_SCHOOL13 <- as.numeric(x_z$FARM_TO_SCHOOL13)
 
-#write.csv(x_z, file = "independentVarsNormalized.csv")
+write.csv(x, file = "predictorData.csv")
+
+write.csv(x_z, file = "predictorsNormalized.csv")
 
 
 ####### Linear model to check for outliers and identify significant predictors (using coefficients/p-values for significance and cook's distance for outliers)
+x_z <- x_z
+x_z$SNAP_CAP16 <- as.numeric(x_z$SNAP_CAP16)
+x_z$SNAP_BBCE16 <- as.numeric(x_z$SNAP_BBCE16)
+x_z$FARM_TO_SCHOOL13 <- as.numeric(x_z$FARM_TO_SCHOOL13)
 linear_model <- lm(y ~ as.matrix(x_z))
 summary(linear_model)
 layout(matrix(c(1,2,3,4), 2, 2))
@@ -254,14 +301,87 @@ plot(cooks_distance, pch="*", cex=2, main="Cook's Distance")
 abline(h = 4*mean(cooks_distance, na.rm=T), col="red")  # add cutoff line
 text(x=1:length(cooks_distance)+1, y=cooks_distance, labels=ifelse(cooks_distance>4*mean(cooks_distance, na.rm=T),names(cooks_distance),""), col="red", pos=4) #labels
 
-#Remove outliers based on Cook's Distance
-x_z <- x_z[-c(298,1226,2507),]
-y <- y[-c(298,1226,2507)]
+####### Remove outliers based on Cook's Distance
+x_z <- x_z[-c(298,1013,1226),]
+y <- y[-c(298,1013,1226)]
 
 ####### Lasso to determine significant predictors
 layout(matrix(c(1), 1, 1))
 lasso <- glmnet(as.matrix(x_z), y, alpha=1) # Create a lasso plot for the data
 plot_glmnet(lasso)
+cvmodel <- cv.glmnet(as.matrix(x_z), y, alpha=1, nfold=10) # Run CV model using 10-fold cross validation
+coef(lasso, s=cvmodel$lambda.1se)
+plot(cvmodel)
+#Lambda chosen: 0.0.07562909
+#Percent variability explained: 56%
+
+####### Remove insignificant predictors
+x_z$PCT_LACCESS_POP15 <- NULL
+x_z$PCT_LACCESS_LOWI15 <- NULL
+x_z$PCT_LACCESS_SNAP15 <- NULL
+x_z$PCT_LACCESS_CHILD15 <- NULL
+x_z$PCT_LACCESS_WHITE15 <- NULL
+x_z$PCT_LACCESS_NHNA15 <- NULL
+x_z$PCT_LACCESS_MULTIR15 <- NULL
+x_z$SPECSPTH14 <- NULL
+x_z$WICSPTH12 <- NULL
+x_z$REDEMP_SNAPS12 <- NULL
+x_z$PCT_REDUCED_LUNCH14 <- NULL
+x_z$PCT_SBP15 <- NULL
+x_z$REDEMP_WICS12 <- NULL
+x_z$FDPIR12 <- NULL
+x_z$SODATAX_VENDM14 <- NULL
+x_z$CHIPSTAX_STORES14 <- NULL
+x_z$FOOD_TAX14 <- NULL
+x_z$PCT_LOCLSALE12 <- NULL
+x_z$FMRKTPTH16 <- NULL
+x_z$PCT_FMRKT_WIC16 <- NULL
+x_z$PCT_FMRKT_WICCASH16 <- NULL
+x_z$PCT_FMRKT_FRVEG16 <- NULL
+x_z$PCT_FMRKT_BAKED16 <- NULL
+x_z$PCT_FMRKT_OTHERFOOD16 <- NULL
+x_z$VEG_ACRESPTH12 <- NULL
+x_z$FRESHVEG_FARMS12 <- NULL
+x_z$FRESHVEG_ACRESPTH12 <- NULL
+x_z$BERRY_ACRESPTH12 <- NULL
+x_z$SLHOUSE12 <- NULL
+x_z$GHVEG_FARMS12 <- NULL
+x_z$GHVEG_SQFTPTH12 <- NULL
+x_z$FARM_TO_SCHOOL13 <- NULL
+x_z$PCT_HSPA15 <- NULL
+x_z$POVRATE15 <- NULL
+x_z$CHILDPOVRATE15 <- NULL
+x_z$METRO13 <- NULL
 
 ####### Set y-pred to predict whether a county is in the third quartile of obesity:
 y_pred <- ifelse(y >= quantile(y,.75), 1, 0)
+set.seed(320489239)
+size <- floor(0.667 * nrow(x_z))
+train_ind <- sample(seq_len(nrow(x_z)), size = size)
+x_train <- x_z[train_ind,]
+x_test <- x_z[-train_ind,]
+y_train <- y_pred[train_ind]
+y_test <- y_pred[-train_ind]
+
+####### SVM model - tune
+#cv <- tune(svm, x_train, as.factor(y_train), cross=10, probability=TRUE, kernel="radial") #Perform 10-fold cross validation on the data set
+svm_model <- cv$best.model #Get the model selected by tune
+summary (svm_model) #Summary information for the SVM model
+summary(cv) #Summary information for the cross validation
+svm_val <- predict(svm_model, x_test) #Using the model, predict cell dna on validation data for fold eight
+svm_predicted <- as.numeric(levels(svm_val))[svm_val] #Convert predicted values to a numeric vector
+svm_confusionMatrix <- confusionMatrix(svm_predicted, y_test, mode="prec_recall", positive="1") #Check precision, accuracy, and recall for the eighth fold
+svm_pred <- prediction(svm_predicted, y_test) #Build a prediction object using predicted classification values and actual class
+svm_perf <- performance(svm_pred, measure="tpr", x.measure="fpr") #Build a performance object measuring true positive rate and false positive rate
+plot(svm_perf) #Plot the ROC curve
+
+####### Neural net
+nnet_data <- x_train
+nnet_data$y <- y_train
+nn <- nnet(as.factor(y) ~ ., data=nnet_data, size=3)
+summary (nn) #Summary information for the SVM model
+predicted <- predict(nn, x_test, type="class")
+confusionMatrix(as.factor(predicted), y_test, mode="prec_recall", positive="1") #Check precision, accuracy, and recall for the eighth fold
+pred <- prediction(as.numeric(predicted), y_test) #Build a prediction object using predicted classification values and actual class
+perf <- performance(pred, measure="tpr", x.measure="fpr") #Build a performance object measuring true positive rate and false positive rate
+plot(perf) #Plot the ROC curve

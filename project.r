@@ -234,7 +234,7 @@ data$PCT_18YOUNGER10 <- NULL
 data$PERPOV10 <- NULL
 data$PERCHLDPOV10 <- NULL
 data$POPLOSS10 <- NULL
-data$SNAP_REPORTSIMPLE16 <- 
+data$SNAP_REPORTSIMPLE16 <- NULL
 data$PCH_FFR_09_14 <- NULL
 data$GROC14 <- NULL
 data$SUPERC14 <- NULL
@@ -291,6 +291,7 @@ x_z <- x_z
 x_z$SNAP_CAP16 <- as.numeric(x_z$SNAP_CAP16)
 x_z$SNAP_BBCE16 <- as.numeric(x_z$SNAP_BBCE16)
 x_z$FARM_TO_SCHOOL13 <- as.numeric(x_z$FARM_TO_SCHOOL13)
+
 linear_model <- lm(y ~ as.matrix(x_z))
 summary(linear_model)
 layout(matrix(c(1,2,3,4), 2, 2))
@@ -312,7 +313,7 @@ plot_glmnet(lasso)
 cvmodel <- cv.glmnet(as.matrix(x_z), y, alpha=1, nfold=10) # Run CV model using 10-fold cross validation
 coef(lasso, s=cvmodel$lambda.1se)
 plot(cvmodel)
-#Lambda chosen: 0.0.07562909
+#Lambda chosen: 0.07562909
 #Percent variability explained: 56%
 
 ####### Remove insignificant predictors
@@ -362,6 +363,15 @@ x_train <- x_z[train_ind,]
 x_test <- x_z[-train_ind,]
 y_train <- y_pred[train_ind]
 y_test <- y_pred[-train_ind]
+labels_train <- labels[train_ind,]
+labels_test <- labels[-train_ind,]
+
+write.csv(x_train, file = "x_train.csv")
+write.csv(x_test, file = "x_test.csv")
+write.csv(y_train, file = "y_train.csv")
+write.csv(y_test, file = "y_test.csv")
+write.csv(labels_train, file = "labels_train.csv")
+write.csv(labels_test, file = "labels_test.csv")
 
 ####### SVM model - tune
 #cv <- tune(svm, x_train, as.factor(y_train), cross=10, probability=TRUE, kernel="radial") #Perform 10-fold cross validation on the data set
@@ -371,6 +381,7 @@ summary(cv) #Summary information for the cross validation
 svm_val <- predict(svm_model, x_test) #Using the model, predict cell dna on validation data for fold eight
 svm_predicted <- as.numeric(levels(svm_val))[svm_val] #Convert predicted values to a numeric vector
 svm_confusionMatrix <- confusionMatrix(svm_predicted, y_test, mode="prec_recall", positive="1") #Check precision, accuracy, and recall for the eighth fold
+svm_confusionMatrix
 svm_pred <- prediction(svm_predicted, y_test) #Build a prediction object using predicted classification values and actual class
 svm_perf <- performance(svm_pred, measure="tpr", x.measure="fpr") #Build a performance object measuring true positive rate and false positive rate
 plot(svm_perf) #Plot the ROC curve

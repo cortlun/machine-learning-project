@@ -374,7 +374,7 @@ write.csv(labels_train, file = "labels_train.csv")
 write.csv(labels_test, file = "labels_test.csv")
 
 ####### SVM model - tune
-#cv <- tune(svm, x_train, as.factor(y_train), cross=10, probability=TRUE, kernel="radial") #Perform 10-fold cross validation on the data set
+cv <- tune(svm, x_train, as.factor(y_train), cross=10, probability=TRUE, kernel="radial") #Perform 10-fold cross validation on the data set
 svm_model <- cv$best.model #Get the model selected by tune
 summary (svm_model) #Summary information for the SVM model
 summary(cv) #Summary information for the cross validation
